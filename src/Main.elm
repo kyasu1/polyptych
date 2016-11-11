@@ -3,6 +3,9 @@ module Main exposing (..)
 import Html.App
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events
+import Json.Decode
+import Mouse
 
 
 borderColor =
@@ -13,6 +16,7 @@ type alias Model =
     { canvas : Size
     , borderSize : Int
     , frame : Frame
+    , dragState : Maybe Mouse.Position
     }
 
 
@@ -40,16 +44,47 @@ initialModel =
             , topHeight = 80
             , bottom = SingleImage { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12101-1115-001" }
             }
+    , dragState = Nothing
     }
 
 
 type Msg
-    = NothingYet
+    = DragDividerStart Mouse.Position
+    | DragMove Mouse.Position
+    | DragEnd Mouse.Position
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case Debug.log "msg" msg of
+        DragDividerStart position ->
+            ( { model | dragState = Just position }, Cmd.none )
+
+        DragMove currentPosition ->
+            case model.dragState of
+                Just startPosition ->
+                    ( { model
+                        | frame = applyDrag (currentPosition.y - startPosition.y) model.frame
+                        , dragState = Just currentPosition
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        DragEnd endPosition ->
+            ( { model | dragState = Nothing }, Cmd.none )
+
+
+applyDrag : Int -> Frame -> Frame
+applyDrag yChange frame =
+    case frame of
+        HorizontalSplit { top, topHeight, bottom } ->
+            HorizontalSplit { top = top, bottom = bottom, topHeight = topHeight + yChange }
+
+        SingleImage _ ->
+            frame
 
 
 viewCanvas : Int -> Size -> Frame -> Html Msg
@@ -101,7 +136,9 @@ viewFrame borderSize size frame =
                         [ ( "width", toString size.width ++ "px" )
                         , ( "height", toString borderSize ++ "px" )
                         , ( "background-color", borderColor )
+                        , ( "cursor", "ns-resize" )
                         ]
+                    , Html.Events.on "mousedown" (Json.Decode.map DragDividerStart Mouse.position)
                     ]
                     []
                 , viewFrame borderSize
@@ -125,10 +162,22 @@ view model =
         ]
 
 
+subscriptions model =
+    case model.dragState of
+        Nothing ->
+            Sub.none
+
+        Just _ ->
+            Sub.batch
+                [ Mouse.moves DragMove
+                , Mouse.ups DragEnd
+                ]
+
+
 main =
     Html.App.program
         { init = ( initialModel, Cmd.none )
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         , update = update
         , view = view
         }
