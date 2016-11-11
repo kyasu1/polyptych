@@ -5,8 +5,13 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 
 
+borderColor =
+    "tan"
+
+
 type alias Model =
     { canvas : Size
+    , borderSize : Int
     , frame : Frame
     }
 
@@ -28,7 +33,7 @@ initialModel : Model
 initialModel =
     { canvas =
         { width = 250, height = 250 }
-        --    , frame = SingleImage { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12201-0285-001" }
+    , borderSize = 5
     , frame =
         HorizontalSplit
             { top = SingleImage { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12201-0285-001" }
@@ -47,8 +52,8 @@ update msg model =
     ( model, Cmd.none )
 
 
-viewCanvas : Size -> Frame -> Html Msg
-viewCanvas size rootFrame =
+viewCanvas : Int -> Size -> Frame -> Html Msg
+viewCanvas borderSize size rootFrame =
     div
         [ style
             [ ( "width", toString size.width ++ "px" )
@@ -56,11 +61,22 @@ viewCanvas size rootFrame =
             , ( "border", "2px solid black" )
             ]
         ]
-        [ viewFrame size rootFrame ]
+        [ div
+            [ style
+                [ ( "border", toString borderSize ++ "px solid " ++ borderColor ) ]
+            ]
+            [ viewFrame
+                borderSize
+                { width = size.width - 2 * borderSize
+                , height = size.height - 2 * borderSize
+                }
+                rootFrame
+            ]
+        ]
 
 
-viewFrame : Size -> Frame -> Html Msg
-viewFrame size frame =
+viewFrame : Int -> Size -> Frame -> Html Msg
+viewFrame borderSize size frame =
     case frame of
         SingleImage { url } ->
             div
@@ -75,12 +91,20 @@ viewFrame size frame =
 
         HorizontalSplit { top, topHeight, bottom } ->
             div []
-                [ viewFrame
+                [ viewFrame borderSize
                     { width = size.width
                     , height = topHeight
                     }
                     top
-                , viewFrame
+                , div
+                    [ style
+                        [ ( "width", toString size.width ++ "px" )
+                        , ( "height", toString borderSize ++ "px" )
+                        , ( "background-color", borderColor )
+                        ]
+                    ]
+                    []
+                , viewFrame borderSize
                     { width = size.width
                     , height = size.height - topHeight
                     }
@@ -95,7 +119,7 @@ view model =
             [ ( "padding", "8px" )
             ]
         ]
-        [ viewCanvas model.canvas model.frame
+        [ viewCanvas model.borderSize model.canvas model.frame
         , hr [] []
         , text <| toString model
         ]
