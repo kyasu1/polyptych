@@ -6,12 +6,24 @@ import Html.Attributes exposing (..)
 
 
 type alias Model =
-    ()
+    { canvas : Size
+    , frame : Frame
+    }
+
+
+type alias Size =
+    { width : Int, height : Int }
+
+
+type Frame
+    = SingleImage { url : String }
 
 
 initialModel : Model
 initialModel =
-    ()
+    { canvas = { width = 250, height = 250 }
+    , frame = SingleImage { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12201-0285-001" }
+    }
 
 
 type Msg
@@ -23,24 +35,30 @@ update msg model =
     ( model, Cmd.none )
 
 
-viewCanvas : Html Msg
-viewCanvas =
+viewCanvas : Size -> Frame -> Html Msg
+viewCanvas size rootFrame =
     div
         [ style
-            [ ( "width", "250px" )
-            , ( "height", "250px" )
+            [ ( "width", toString size.width ++ "px" )
+            , ( "height", toString size.height ++ "px" )
             , ( "border", "2px solid black" )
             ]
         ]
-        [ div
-            [ style
-                [ ( "background-image", "url(https://cdn.pixabay.com/photo/2014/07/31/23/01/clock-407101_1280.jpg)" )
-                , ( "background-size", "auto 250px" )
-                , ( "height", "250px" )
+        [ viewFrame size rootFrame ]
+
+
+viewFrame : Size -> Frame -> Html Msg
+viewFrame size frame =
+    case frame of
+        SingleImage { url } ->
+            div
+                [ style
+                    [ ( "background-image", "url(" ++ url ++ ")" )
+                    , ( "background-size", "auto " ++ toString size.height ++ "px" )
+                    , ( "height", "100%" )
+                    ]
                 ]
-            ]
-            []
-        ]
+                []
 
 
 view : Model -> Html.Html Msg
@@ -50,7 +68,7 @@ view model =
             [ ( "padding", "8px" )
             ]
         ]
-        [ viewCanvas
+        [ viewCanvas model.canvas model.frame
         , hr [] []
         , text <| toString model
         ]
