@@ -16,7 +16,8 @@ type alias Model =
     { canvas : Size
     , borderSize : Int
     , frame : Frame
-    , dragState : Maybe Mouse.Position
+    , dragSlideState : Maybe Mouse.Position
+    , dragImageState : Maybe Mouse.Position
     }
 
 
@@ -24,9 +25,14 @@ type alias Size =
     { width : Int, height : Int }
 
 
+type alias Position =
+    { x : Int, y : Int }
+
+
 type alias Image =
     { url : String
     , size : Size
+    , offset : Position
     }
 
 
@@ -45,25 +51,29 @@ initialModel =
         { width = 250, height = 250 }
     , borderSize = 5
     , frame =
-        HorizontalSplit
-            { top =
-                SingleImage
-                    { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12201-0285-001"
-                    , size = { width = 640, height = 640 }
-                    }
-            , topHeight = 80
-            , bottom =
-                SingleImage
-                    { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12101-1115-001"
-                    , size = { width = 640, height = 640 }
-                    }
+        --        HorizontalSplit
+        --            { top =
+        SingleImage
+            { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12201-0285-001"
+            , size = { width = 640, height = 640 }
+            , offset = { x = 0, y = 0 }
             }
-    , dragState = Nothing
+        --            , topHeight = 80
+        --            , bottom =
+        --                SingleImage
+        --                    { url = "http://item.shopping.c.yimg.jp/i/l/pawnshopiko_12101-1115-001"
+        --                    , size = { width = 640, height = 640 }
+        --                    , offset = { x = 0, y = 0 }
+        --                    }
+        --            }
+    , dragSlideState = Nothing
+    , dragImageState = Nothing
     }
 
 
 type Msg
     = DragDividerStart Mouse.Position
+    | DragImageStart Mouse.Position
     | DragMove Mouse.Position
     | DragEnd Mouse.Position
 
@@ -72,23 +82,64 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case Debug.log "msg" msg of
         DragDividerStart position ->
-            ( { model | dragState = Just position }, Cmd.none )
+            ( { model | dragSlideState = Just position }, Cmd.none )
+
+        DragImageStart position ->
+            ( { model | dragImageState = Just position }
+            , Cmd.none
+            )
 
         DragMove currentPosition ->
-            case model.dragState of
+            case model.dragSlideState of
                 Just startPosition ->
                     ( { model
                         | frame = applyDrag (currentPosition.y - startPosition.y) model.frame
-                        , dragState = Just currentPosition
+                        , dragSlideState = Just currentPosition
                       }
                     , Cmd.none
                     )
 
                 Nothing ->
-                    ( model, Cmd.none )
+                    case model.dragImageState of
+                        Just startPosition ->
+                            ( { model
+                                | frame =
+                                    applyImageDrag
+                                        { x = startPosition.x - currentPosition.x
+                                        , y = startPosition.y - currentPosition.y
+                                        }
+                                        model.frame
+                                , dragImageState = Just currentPosition
+                              }
+                            , Cmd.none
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
 
         DragEnd endPosition ->
-            ( { model | dragState = Nothing }, Cmd.none )
+            ( { model
+                | dragSlideState = Nothing
+                , dragImageState = Nothing
+              }
+            , Cmd.none
+            )
+
+
+applyImageDrag : Position -> Frame -> Frame
+applyImageDrag change frame =
+    case frame of
+        SingleImage image ->
+            SingleImage
+                { image
+                    | offset =
+                        { x = image.offset.x + change.x
+                        , y = image.offset.y + change.y
+                        }
+                }
+
+        HorizontalSplit _ ->
+            frame
 
 
 applyDrag : Int -> Frame -> Frame
@@ -146,7 +197,9 @@ viewFrame borderSize size frame =
                           )
                         , ( "width", toString size.width ++ "px" )
                         , ( "height", toString size.height ++ "px" )
+                        , ( "background-position", toString -image.offset.x ++ "px " ++ toString -image.offset.y ++ "px" )
                         ]
+                    , Html.Events.on "mousedown" (Json.Decode.map DragImageStart Mouse.position)
                     ]
                     []
 
@@ -189,15 +242,21 @@ view model =
 
 
 subscriptions model =
-    case model.dragState of
-        Nothing ->
-            Sub.none
-
-        Just _ ->
+    case ( model.dragSlideState, model.dragImageState ) of
+        ( Just _, _ ) ->
             Sub.batch
                 [ Mouse.moves DragMove
                 , Mouse.ups DragEnd
                 ]
+
+        ( _, Just _ ) ->
+            Sub.batch
+                [ Mouse.moves DragMove
+                , Mouse.ups DragEnd
+                ]
+
+        _ ->
+            Sub.none
 
 
 main =
