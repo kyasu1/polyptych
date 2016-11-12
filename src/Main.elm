@@ -6,6 +6,7 @@ import Html.Attributes exposing (..)
 import Html.Events
 import Json.Decode
 import Mouse
+import ImageSearch
 
 
 borderColor =
@@ -18,6 +19,7 @@ type alias Model =
     , frame : Frame
     , dragState :
         Maybe { startPosition : Mouse.Position, path : FramePath }
+    , imageSearch : ImageSearch.Model
     }
 
 
@@ -81,6 +83,7 @@ initialModel =
                     }
             }
     , dragState = Nothing
+    , imageSearch = ImageSearch.init
     }
 
 
@@ -88,6 +91,7 @@ type Msg
     = DragStart FramePath Mouse.Position
     | DragMove Mouse.Position
     | DragEnd Mouse.Position
+    | ImageSearchMsg ImageSearch.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -122,6 +126,30 @@ update msg model =
               }
             , Cmd.none
             )
+
+        ImageSearchMsg (ImageSearch.ImageSelected { url }) ->
+            ( { model | frame = replaceImage [ 0 ] url model.frame }, Cmd.none )
+
+        ImageSearchMsg childMsg ->
+            let
+                ( newChildModel, childCmd ) =
+                    ImageSearch.update childMsg model.imageSearch
+            in
+                ( { model | imageSearch = newChildModel }
+                , Cmd.map ImageSearchMsg childCmd
+                )
+
+
+replaceImage : FramePath -> String -> Frame -> Frame
+replaceImage path newUrl frame =
+    case frame of
+        SingleImage currentImage ->
+            SingleImage { currentImage | url = newUrl }
+
+        HorizontalSplit current ->
+            -- TODO follow the correct path
+            HorizontalSplit
+                { current | top = replaceImage [] newUrl current.top }
 
 
 applyDrag : FramePath -> Position -> Frame -> Frame
@@ -246,6 +274,16 @@ view model =
             ]
         ]
         [ viewCanvas model.borderSize model.canvas model.frame
+        , div
+            [ style
+                [ ( "position", "absolute" )
+                , ( "right", "0px" )
+                , ( "top", "0px" )
+                ]
+            ]
+            [ Html.App.map ImageSearchMsg
+                (ImageSearch.view model.imageSearch)
+            ]
         , hr [] []
         , text <| toString model
         ]
